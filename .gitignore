@@ -44,3 +44,6 @@ yarn-error.log*
 next-env.d.ts
 .factory
 e2e_*.mjs
+
+# local issue tracker drafts (see docs/agents/issue-tracker.md)
+/.scratch/
