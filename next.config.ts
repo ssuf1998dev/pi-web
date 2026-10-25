@@ -48,6 +48,8 @@ const nextConfig: NextConfig = {
     "node-pty",
     "undici",
     "web-push",
+    // ESM only, and jose brings its own crypto paths: leave both to Node.
+    "openid-client",
     "@earendil-works/pi-coding-agent",
     "@earendil-works/pi-agent-core",
     "@earendil-works/pi-ai",
