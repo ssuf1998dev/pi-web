@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { homedir } from "os";
 import type { IPty } from "node-pty";
+import { DENIED_HOST_VARIABLES } from "./host-credentials";
 import { samePath } from "./paths";
 
 export type TerminalEvent =
@@ -45,9 +46,10 @@ function registry(): Map<string, TerminalRecord> {
 function shellEnvironment(): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) {
-    // The browser login password guards this server, not the shells it starts.
+    // The browser login password and the OIDC client secret guard this server,
+    // not the shells it starts. Windows names compare case-insensitively.
     const comparableKey = process.platform === "win32" ? key.toUpperCase() : key;
-    if (value !== undefined && comparableKey !== "PI_WEB_PASSWORD") env[key] = value;
+    if (value !== undefined && !DENIED_HOST_VARIABLES.includes(comparableKey as (typeof DENIED_HOST_VARIABLES)[number])) env[key] = value;
   }
   env.TERM = "xterm-256color";
   env.COLORTERM = "truecolor";

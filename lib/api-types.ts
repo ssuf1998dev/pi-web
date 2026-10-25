@@ -195,6 +195,15 @@ export interface McpVariableReference extends McpConfigFieldRef {
   variables: string[];
 }
 
+/**
+ * A value of an `mcp.json` entry that reads one of the host's own login
+ * credentials, which Pi Web never passes to an MCP server. Named with the
+ * variable as Pi Web spells it, whichever casing the entry used.
+ */
+export interface McpDeniedVariableFieldRef extends McpConfigFieldRef {
+  variable: string;
+}
+
 export type McpConfigFileProblemReason =
   /** The file is not JSON. */
   | "unparsable"
@@ -297,8 +306,8 @@ export interface McpServerInfo {
   commandFields: McpConfigFieldRef[];
   /** Values that read the host's environment variables on every connection; a `!command` is in `commandFields` instead. */
   variableReferences: McpVariableReference[];
-  /** The value that references `PI_WEB_PASSWORD`; Pi Web refuses to connect such an entry. */
-  webPasswordField?: McpConfigFieldRef;
+  /** The value that references one of the host's login credentials; Pi Web refuses to connect such an entry. */
+  deniedVariableField?: McpDeniedVariableFieldRef;
   /** Some of `command`, `args` or `url` was masked. */
   masked: boolean;
   /** A global entry the project file defines too; the project's replaces it while the project is trusted. */
@@ -608,8 +617,8 @@ export type McpRefusalReason =
   | "server-missing"
   /** The entry is not a JSON object, so it cannot be switched on or off, only removed (`path`, `name`). */
   | "entry-not-object"
-  /** The entry references `PI_WEB_PASSWORD`, so Pi Web does not turn it on, add, test or sign in to it (`name`). */
-  | "web-password"
+  /** The entry references one of the host's login credentials (`PI_WEB_PASSWORD`, `PI_WEB_OIDC_CLIENT_SECRET`), so Pi Web does not turn it on, add, test or sign in to it (`name`, `variable`). */
+  | "denied-host-variable"
   /** The SDK's validator refuses the entry (`name`; `error` is the validator's message, which names fields, never values). */
   | "server-invalid"
   /** The undo token is unknown, used, or past its 60 seconds. */
@@ -668,6 +677,8 @@ export interface McpErrorResponse {
   path?: string;
   /** The server a refusal is about. */
   name?: string;
+  /** `denied-host-variable`: the host credential the entry reads, as Pi Web spells it. */
+  variable?: string;
   /** `name-taken` on add: a name the file does not define yet. */
   suggestedName?: string;
   /** `import-failed`, `fields-incomplete`: why, as the importer's notes (`lib/mcp-import.ts`). */

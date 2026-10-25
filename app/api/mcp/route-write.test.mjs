@@ -223,7 +223,7 @@ test("while MCP is off nothing is written", async () => {
 
 test("an entry that references PI_WEB_PASSWORD is never turned on, but can be turned off and removed", async () => {
   const refused = await post({ action: "enable", scope: "global", name: "pw" });
-  assert.deepEqual([refused.status, refused.body.reason, refused.body.name], [409, "web-password", "pw"]);
+  assert.deepEqual([refused.status, refused.body.reason, refused.body.name], [409, "denied-host-variable", "pw"]);
   assert.equal(await readFile(globalPath, "utf8"), globalText);
   assert.equal((await post({ action: "disable", scope: "global", name: "pw" })).status, 200);
   assert.equal((await post({ action: "remove", scope: "global", name: "pw" })).status, 200);
@@ -246,7 +246,7 @@ test("the group switch answers per server, so a refused one leaves the rest swit
   assert.equal(status, 200);
   assert.deepEqual(body.results.map(({ scope, name, reason }) => [scope, name, reason]), [
     ["global", "lint", undefined],
-    ["global", "pw", "web-password"],
+    ["global", "pw", "denied-host-variable"],
     ["global", "gone", "server-missing"],
     ["project", "repo", "project-untrusted"],
     ["global", "docs", undefined],
@@ -402,7 +402,7 @@ test("a global server is turned off and on in the project alone, through an over
   // A server that references PI_WEB_PASSWORD is never turned on, here either; off works.
   ({ status, body } = await post({ action: "set-in-project", name: "pw", enabled: true, cwd }));
   assert.equal(status, 409);
-  assert.equal(body.reason, "web-password");
+  assert.equal(body.reason, "denied-host-variable");
   ({ status } = await post({ action: "set-in-project", name: "pw", enabled: false, cwd }));
   assert.equal(status, 200);
 

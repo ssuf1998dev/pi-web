@@ -437,7 +437,10 @@ test("Add waits, with a reason, for a free valid name, the values, and a scope i
   assert.deepEqual(analyse({ text }).submitBlock, { kind: "fields", fields: ["pat"] });
   assert.deepEqual(analyse({ text: "nothing to see | here" }).submitBlock, { kind: "nothing" });
   const password = analyse({ text: JSON.stringify({ mcpServers: { pw: { url: "https://pw/mcp", headers: { A: "${PI_WEB_PASSWORD}" } } } }), rawPi: true });
-  assert.deepEqual(password.submitBlock, { kind: "web-password" });
+  assert.deepEqual(password.submitBlock, { kind: "denied-host-variable", variable: "PI_WEB_PASSWORD" });
+  // The OIDC client secret is the same class of credential, and the pane names the one it hit.
+  const oidc = analyse({ text: JSON.stringify({ mcpServers: { sso: { url: "https://sso/mcp", oauth: { clientSecret: "${PI_WEB_OIDC_CLIENT_SECRET}" } } } }), rawPi: true });
+  assert.deepEqual(oidc.submitBlock, { kind: "denied-host-variable", variable: "PI_WEB_OIDC_CLIENT_SECRET" });
   const broken = analyse({ text: "npx x" }, overview({ files: [{ ...globalFile, problems: [{ reason: "unparsable", error: "x" }] }, projectFile] }));
   assert.deepEqual(broken.submitBlock, { kind: "scope", block: { kind: "file-problem", path: globalFile.path, reason: "unparsable" } });
   const off = analyse({ text: "npx -y @scope/lint-mcp" }, overview({ mcp: { available: false, reason: "operator-disabled", error: "x" } }));

@@ -27,7 +27,7 @@ import type {
 // Settings › MCP's Test (ADR 0006): connect one `mcp.json` entry once, outside
 // any session, list what it offers, and close it again. It connects the way a
 // session does — the SDK's `McpServerConnection`, Pi Web's transport factory
-// (scrubbed environment, PI_WEB_PASSWORD refused), the default OAuth store in
+// (scrubbed environment, host login credentials refused), the default OAuth store in
 // `mcp-auth.json` — so what it finds is what a session would find. The route
 // (`app/api/mcp/test/route.ts`) decides whether an entry may be tested at all
 // and reads it from the file; nothing here takes a config from the browser.

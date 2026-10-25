@@ -267,9 +267,22 @@ test("a refused entry shows why, and nothing it would run or send", () => {
 
   const password = text(view({
     selected: "global\0pw",
-    load: { state: "loaded", data: overview({ servers: [server({ name: "pw", transport: "http", url: "https://x/mcp", webPasswordField: { kind: "header", name: "Authorization" } })] }) },
+    load: { state: "loaded", data: overview({ servers: [server({ name: "pw", transport: "http", url: "https://x/mcp", deniedVariableField: { kind: "header", name: "Authorization", variable: "PI_WEB_PASSWORD" } })] }) },
   }));
-  assert.match(password, /Status Refused: references PI_WEB_PASSWORD References PI_WEB_PASSWORD\. Pi Web refuses to connect it/);
+  assert.match(password, /Status Refused: references a login credential of this server References PI_WEB_PASSWORD, one of Pi Web's own login credentials\. Pi Web refuses to connect it/);
+
+  // The same row for the OIDC client secret: the wording names whichever credential the route hit.
+  const oidc = text(view({
+    selected: "global\0sso",
+    load: {
+      state: "loaded",
+      data: overview({
+        servers: [server({ name: "sso", transport: "http", url: "https://sso/mcp", deniedVariableField: { kind: "oauth-client-secret", variable: "PI_WEB_OIDC_CLIENT_SECRET" } })],
+      }),
+    },
+  }));
+  assert.match(oidc, /References PI_WEB_OIDC_CLIENT_SECRET, one of Pi Web's own login credentials\./);
+  assert.doesNotMatch(oidc, /References PI_WEB_PASSWORD\b/);
 });
 
 test("repository text is shown with its hidden characters escaped", () => {
@@ -804,7 +817,7 @@ const groupOverview = (overrides = {}) => overview({
   files: [globalFile, projectFile],
   servers: [
     server({ name: "docs", transport: "http", url: "https://docs/mcp" }),
-    server({ name: "pw", transport: "http", url: "https://pw/mcp", enabled: false, webPasswordField: { kind: "header", name: "Authorization" } }),
+    server({ name: "pw", transport: "http", url: "https://pw/mcp", enabled: false, deniedVariableField: { kind: "header", name: "Authorization", variable: "PI_WEB_PASSWORD" } }),
     server({ name: "repo", scope: "project", sourcePath: projectFile.path, transport: "stdio", command: "node" }),
   ],
   project: { cwd: "/Users/me/repo", trust: trusted },
@@ -859,9 +872,9 @@ test("why a server cannot be changed is the visible note its controls point at",
   assert.doesNotMatch(detailControls(builtin).toggle, /disabled/);
   assert.doesNotMatch(text(builtin), /cannot be changed here/);
 
-  // An entry that references PI_WEB_PASSWORD is never turned on, but can be removed.
+  // An entry that reads a host login credential is never turned on, but can be removed.
   const password = detailControls(writeView({ view: { selected: "global\0pw" } }));
-  assert.equal(password.note, "It references PI_WEB_PASSWORD, so Pi Web does not turn it on.");
+  assert.equal(password.note, "It references PI_WEB_PASSWORD, one of Pi Web's own login credentials, so Pi Web does not turn it on.");
   assert.match(password.toggle, /aria-checked="false"[^>]*disabled=""/);
   assert.doesNotMatch(password.remove[0], /disabled/);
 });
@@ -905,7 +918,7 @@ test("the group switch names what it left undone under the heading", () => {
   const status = html.match(/<div class="config-sidebar-group-status">([\s\S]*?)<\/div><\/div>/)?.[1];
   assert.ok(status, "the status sits under the Global heading");
   assert.ok(html.indexOf("config-sidebar-group-status") > html.indexOf(">global<"));
-  assert.match(status, /<div role="status" class="config-sidebar-group-note">1 server\(s\) that reference PI_WEB_PASSWORD stayed off\.<\/div>/);
+  assert.match(status, /<div role="status" class="config-sidebar-group-note">1 server\(s\) that reference one of Pi Web's own login credentials stayed off\.<\/div>/);
   assert.match(status, /<div role="alert" class="config-sidebar-group-error">Could not change 2 of 3 servers:\ngone: The file no longer defines this server\.\nodd: EIO/);
   const whole = decode(writeView({ view: { groupStatus: { scope: "project", keptOff: 0, failures: [], total: 1, error: { error: "x", reason: "project-untrusted" } } } }));
   assert.match(whole, /<div role="alert" class="config-sidebar-group-error">Could not change the server: This project is not trusted, so Pi Web does not change its \.pi\/mcp\.json\.<\/div>/);
@@ -936,7 +949,7 @@ test("a group holding a server the switch never turns on can still be switched o
   // asked to turn on again and sent nothing.
   assert.match(groupSwitch(writeView(), "1/2"), /aria-checked="true" aria-label="Turn off every global server"/);
   // The count still says what the file says.
-  const pwOff = server({ name: "pw", transport: "http", url: "https://pw/mcp", enabled: false, webPasswordField: { kind: "header", name: "Authorization" } });
+  const pwOff = server({ name: "pw", transport: "http", url: "https://pw/mcp", enabled: false, deniedVariableField: { kind: "header", name: "Authorization", variable: "PI_WEB_PASSWORD" } });
   assert.match(
     groupSwitch(writeView({ data: { servers: [server({ name: "docs", enabled: false, transport: "http", url: "https://docs/mcp" }), pwOff] } }), "0/2"),
     /aria-checked="false" aria-label="Turn on every global server"/,
@@ -1168,8 +1181,8 @@ test("Test is disabled where the route would refuse it, and points at the visibl
   const invalid = testView({ invalidError: "legacy SSE" });
   assert.equal(reason(invalid), "Pi refuses this entry, so it never connects: legacy SSE");
   assert.doesNotMatch(text(decode(invalid)), /nothing to test/);
-  const password = testView({ webPasswordField: { kind: "header", name: "Authorization" } });
-  assert.match(reason(password), /^References PI_WEB_PASSWORD\. Pi Web refuses to connect it, .* header Authorization$/);
+  const password = testView({ deniedVariableField: { kind: "header", name: "Authorization", variable: "PI_WEB_PASSWORD" } });
+  assert.match(reason(password), /^References PI_WEB_PASSWORD, one of Pi Web's own login credentials\. Pi Web refuses to connect it, .* header Authorization$/);
   assert.doesNotMatch(text(decode(password)), /so Pi Web does not connect it/);
   // -builtin:mcp leaves it as an explicit action.
   const builtin = statusRow(testView({}, { data: { mcp: { available: false, reason: "builtin-disabled", error: "x", settingsPath: "/s.json" } } }));

@@ -45,7 +45,8 @@ export function mcpServerKey(server: Pick<McpServerInfo, "scope" | "name">): str
 
 /**
  * What a row says about an entry, most important first. From the file: an
- * entry pi refuses, one Pi Web refuses because it references PI_WEB_PASSWORD,
+ * entry pi refuses, one Pi Web refuses because it reads one of the host's own
+ * login credentials (`deniedVariableField`),
  * one turned off in the file, a project entry of a project whose servers may
  * not be read, a global entry the trusted project's entry of the same name
  * replaces or overrides, and MCP being off on this server. Only an entry the file lets
@@ -58,7 +59,7 @@ export function mcpServerKey(server: Pick<McpServerInfo, "scope" | "name">): str
  */
 export type McpServerRowState =
   | "invalid"
-  | "web-password"
+  | "denied-host-variable"
   | "disabled"
   | "not-trusted"
   | "replaced"
@@ -74,7 +75,7 @@ export type McpServerRowState =
 
 export const MCP_SERVER_ROW_STATES: readonly McpServerRowState[] = [
   "invalid",
-  "web-password",
+  "denied-host-variable",
   "disabled",
   "not-trusted",
   "replaced",
@@ -126,7 +127,7 @@ export function mcpStatusRowState(status: McpServerStatus): McpServerRowState {
 
 export function mcpServerRowState(server: McpServerInfo, context: McpRowContext): McpServerRowState {
   if (server.invalidError !== undefined) return "invalid";
-  if (server.webPasswordField) return "web-password";
+  if (server.deniedVariableField) return "denied-host-variable";
   if (!server.enabled) return "disabled";
   if (server.scope === "project" && !context.projectServersLoad) return "not-trusted";
   // The project's entry replaces this one, or its override changes it, only where it is read.
@@ -136,10 +137,17 @@ export function mcpServerRowState(server: McpServerInfo, context: McpRowContext)
   return server.status ? mcpStatusRowState(server.status) : "on";
 }
 
+/** The variable a denied-credential entry reads, for the wording that names it; empty for any other entry. */
+export function mcpDeniedVariableParams(
+  server: Pick<McpServerInfo, "deniedVariableField">,
+): { variable: string } {
+  return { variable: server.deniedVariableField?.variable ?? "" };
+}
+
 /** The full state text, for the row's accessible name and the detail pane. */
 export const MCP_ROW_STATE_LABEL_KEYS: Record<McpServerRowState, string> = {
   invalid: "mcp.state.invalid",
-  "web-password": "mcp.state.web-password",
+  "denied-host-variable": "mcp.state.denied-host-variable",
   disabled: "mcp.state.disabled",
   "not-trusted": "mcp.state.not-trusted",
   replaced: "mcp.state.replaced",
@@ -169,7 +177,7 @@ export function mcpRowStateLabelKey(state: McpServerRowState, status: McpServerS
  * The sentence after a server's status lines in its pane, only where neither
  * the state's label nor those lines say it: what happens next for a dropped
  * connection, what to do about a taken name. None for `invalid` and
- * `web-password`, which the pane words with the reason itself, none for
+ * `denied-host-variable`, which the pane words with the reason itself, none for
  * `connected`, `needs-auth`, `failed` and `connecting`, whose status lines say
  * where and when they were seen, and none for the states that say why the
  * entry does not connect in their label (`disabled`, `not-trusted`,
@@ -192,7 +200,7 @@ export function mcpRowStateDetailKey(state: McpServerRowState): string | undefin
  */
 export const MCP_ROW_STATE_BADGE_KEYS: Partial<Record<McpServerRowState, string>> = {
   invalid: "mcp.stateShort.invalid",
-  "web-password": "mcp.stateShort.web-password",
+  "denied-host-variable": "mcp.stateShort.denied-host-variable",
   disabled: "mcp.stateShort.disabled",
   "not-trusted": "mcp.stateShort.not-trusted",
   replaced: "mcp.stateShort.replaced",
@@ -209,7 +217,7 @@ export type McpStateTone = "on" | "off" | "warning" | "error";
 /** How a state is colored: the dot, and the state text in the detail pane. */
 export function mcpRowStateTone(state: McpServerRowState): McpStateTone {
   if (state === "on" || state === "connected") return "on";
-  if (state === "invalid" || state === "web-password" || state === "failed" || state === "conflict") return "error";
+  if (state === "invalid" || state === "denied-host-variable" || state === "failed" || state === "conflict") return "error";
   if (state === "not-trusted" || state === "needs-auth" || state === "disconnected") return "warning";
   return "off";
 }
@@ -782,6 +790,7 @@ export function refusalFailure(data: unknown, status: number): McpActionFailure 
     ...(typeof refusal.suggestedName === "string" ? { suggestedName: refusal.suggestedName } : {}),
     ...(isStringList(refusal.names) ? { names: refusal.names } : {}),
     ...(isStringList(refusal.fields) ? { fields: refusal.fields } : {}),
+    ...(typeof refusal.variable === "string" ? { variable: refusal.variable } : {}),
     ...(Array.isArray(refusal.notes) ? { notes: refusal.notes.filter((note): note is McpImportNote => typeof note?.code === "string") } : {}),
     ...(typeof breadth?.kind === "string" && typeof breadth.path === "string" ? { breadth: breadth as FreshFolderTrustBreadth } : {}),
     ...(typeof trust?.requiresTrust === "boolean" && typeof trust.trusted === "boolean" ? { trust: trust as ProjectTrustStatus } : {}),
@@ -1114,24 +1123,24 @@ export const MCP_READ_ONLY_KEYS: Record<McpWriteBlock, string> = {
   "trust-unreadable": "mcp.readOnly.trust-unreadable",
 };
 
-type McpSwitchable = Pick<McpServerInfo, "enabled" | "webPasswordField" | "notAnObject">;
+type McpSwitchable = Pick<McpServerInfo, "enabled" | "deniedVariableField" | "notAnObject">;
 
 /** Whether a switch can change the entry at all: one that is not an object has no `enabled` to write. */
 function mcpServerSwitchable(server: McpSwitchable): boolean {
   return server.notAnObject !== true;
 }
 
-/** Whether a switch may turn the entry on: the route refuses one that references PI_WEB_PASSWORD. */
+/** Whether a switch may turn the entry on: the route refuses one that reads a host login credential. */
 function mcpServerCanTurnOn(server: McpSwitchable): boolean {
-  return mcpServerSwitchable(server) && server.webPasswordField === undefined;
+  return mcpServerSwitchable(server) && server.deniedVariableField === undefined;
 }
 
 /**
  * What a group switch sends: the servers not already as asked, as
- * `itemsToSwitch()` picks them, except that one referencing PI_WEB_PASSWORD
- * is never turned on (the route refuses it) and an entry that is not an object
- * is never sent (nothing in it can be switched); `keptOff` counts the
- * PI_WEB_PASSWORD ones, for the note under the heading.
+ * `itemsToSwitch()` picks them, except that one reading a host login
+ * credential is never turned on (the route refuses it) and an entry that is not
+ * an object is never sent (nothing in it can be switched); `keptOff` counts
+ * those, for the note under the heading.
  */
 export function mcpGroupSwitchTargets<T extends McpSwitchable>(servers: readonly T[], enabled: boolean): { targets: T[]; keptOff: number } {
   const sendable = enabled ? mcpServerCanTurnOn : mcpServerSwitchable;
@@ -1144,8 +1153,8 @@ export function mcpGroupSwitchTargets<T extends McpSwitchable>(servers: readonly
 /**
  * Whether a group switch reads on: some server is on, and every server it
  * could turn on is. That is the Skills and Plugins rule (on only while every
- * row is) over the servers the switch can change: an entry referencing
- * PI_WEB_PASSWORD that is off, which it never turns on, or one that is not an
+ * row is) over the servers the switch can change: an entry reading a host
+ * login credential that is off, which it never turns on, or one that is not an
  * object would otherwise keep the group partial for good, so the switch would
  * always read off, every click would ask to turn it on and send nothing, and
  * the group could never be switched off from its heading.
@@ -1182,6 +1191,8 @@ export interface McpActionFailure extends McpLoadFailure {
   suggestedName?: string;
   names?: string[];
   fields?: string[];
+  /** `denied-host-variable`: the host credential the entry reads, as Pi Web spells it. */
+  variable?: string;
   notes?: McpImportNote[];
   breadth?: FreshFolderTrustBreadth;
   trust?: ProjectTrustStatus;
@@ -1249,27 +1260,27 @@ export async function postMcpAction(
  * route's own check, so the button is never offered for a request that would
  * be refused: MCP off on the server (`mcpWritesOff()`; `-builtin:mcp` still
  * tests, as an explicit action), a project no decision trusts or a trust store
- * that cannot be read, an entry pi refuses, and one that references
- * PI_WEB_PASSWORD. A switched-off entry can be tested before it is turned on.
+ * that cannot be read, an entry pi refuses, and one that reads
+ * one of the host's own login credentials. A switched-off entry can be tested before it is turned on.
  */
-export type McpTestBlock = McpWriteBlock | "invalid" | "web-password";
+export type McpTestBlock = McpWriteBlock | "invalid" | "denied-host-variable";
 
 export const MCP_TEST_BLOCK_KEYS: Record<McpTestBlock, string> = {
   "mcp-off": "mcp.test.blocked.mcp-off",
   "project-untrusted": "mcp.test.blocked.project-untrusted",
   "trust-unreadable": "mcp.test.blocked.trust-unreadable",
   invalid: "mcp.test.blocked.invalid",
-  "web-password": "mcp.test.blocked.web-password",
+  "denied-host-variable": "mcp.test.blocked.denied-host-variable",
 };
 
 export function mcpTestBlock(
-  server: Pick<McpServerInfo, "scope" | "invalidError" | "validated" | "webPasswordField">,
+  server: Pick<McpServerInfo, "scope" | "invalidError" | "validated" | "deniedVariableField">,
   data: Pick<McpResponse, "mcp" | "project">,
 ): McpTestBlock | undefined {
   const block = mcpWriteBlock(server.scope, data);
   if (block) return block;
   if (server.invalidError !== undefined || !server.validated) return "invalid";
-  if (server.webPasswordField) return "web-password";
+  if (server.deniedVariableField) return "denied-host-variable";
   return undefined;
 }
 
@@ -1285,7 +1296,7 @@ export const MCP_TEST_REFUSAL_KEYS: Partial<Record<McpRefusalReason, string>> = 
   "project-untrusted": "mcp.test.blocked.project-untrusted",
   "trust-unreadable": "mcp.test.blocked.trust-unreadable",
   "server-invalid": "mcp.test.blocked.invalid",
-  "web-password": "mcp.test.blocked.web-password",
+  "denied-host-variable": "mcp.test.blocked.denied-host-variable",
   "entry-not-object": "mcp.test.refused.entry-not-object",
   "invalid-request": "mcp.test.refused.invalid-request",
   unparsable: "mcp.test.refused.unparsable",

@@ -81,10 +81,10 @@ export function mcpSignInLink(url: string | undefined): string | undefined {
  * Why Sign in cannot be used, or undefined when it can: the Test route's
  * checks, which the sign-in route shares (`mcpTestBlock()`): MCP off on the
  * server, a project no decision trusts or a trust store that cannot be read,
- * an entry pi refuses, and one that references PI_WEB_PASSWORD.
+ * an entry pi refuses, and one that reads one of the host's own login credentials.
  */
 export function mcpSignInBlock(
-  server: Pick<McpServerInfo, "scope" | "invalidError" | "validated" | "webPasswordField">,
+  server: Pick<McpServerInfo, "scope" | "invalidError" | "validated" | "deniedVariableField">,
   data: Pick<McpResponse, "mcp" | "project">,
 ): McpTestBlock | undefined {
   return mcpTestBlock(server, data);
@@ -93,7 +93,7 @@ export function mcpSignInBlock(
 /**
  * Why Sign out cannot be used: the checks of any change to the entry
  * (`mcpWriteBlock()`), and an entry pi refuses, whose URL Pi Web does not
- * read. An entry that references PI_WEB_PASSWORD can still be signed out of.
+ * read. An entry that reads a host login credential can still be signed out of.
  */
 export function mcpSignOutBlock(
   server: Pick<McpServerInfo, "scope" | "invalidError" | "validated">,
@@ -109,7 +109,7 @@ export const MCP_SIGN_IN_BLOCK_KEYS: Record<McpTestBlock, string> = {
   "project-untrusted": "mcp.signIn.blocked.project-untrusted",
   "trust-unreadable": "mcp.signIn.blocked.trust-unreadable",
   invalid: "mcp.signIn.blocked.invalid",
-  "web-password": "mcp.test.blocked.web-password",
+  "denied-host-variable": "mcp.test.blocked.denied-host-variable",
 };
 
 /**
@@ -123,7 +123,7 @@ export const MCP_SIGN_IN_REFUSAL_KEYS: Partial<Record<McpRefusalReason, string>>
   "project-untrusted": "mcp.signIn.blocked.project-untrusted",
   "trust-unreadable": "mcp.signIn.blocked.trust-unreadable",
   "server-invalid": "mcp.signIn.blocked.invalid",
-  "web-password": "mcp.test.blocked.web-password",
+  "denied-host-variable": "mcp.test.blocked.denied-host-variable",
   "entry-not-object": "mcp.signIn.refused.file",
   "server-missing": "mcp.signIn.refused.file",
   unparsable: "mcp.signIn.refused.file",

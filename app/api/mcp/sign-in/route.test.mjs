@@ -209,7 +209,7 @@ test("only an OAuth server Pi Web would connect signs in", async () => {
     body: { error: "MCP server \"lint\" does not use OAuth: only an HTTP server without an Authorization header does", reason: "sign-in-not-oauth", name: "lint" },
   });
   assert.equal((await start({ scope: "global", name: "keyed" })).body.reason, "sign-in-not-oauth");
-  assert.equal((await start({ scope: "global", name: "pw" })).body.reason, "web-password");
+  assert.equal((await start({ scope: "global", name: "pw" })).body.reason, "denied-host-variable");
   assert.equal((await start({ scope: "global", name: "sse" })).body.reason, "server-invalid");
   assert.equal((await start({ scope: "global", name: "junk" })).body.reason, "entry-not-object");
   assert.equal((await start({ scope: "global", name: "missing" })).body.reason, "server-missing");

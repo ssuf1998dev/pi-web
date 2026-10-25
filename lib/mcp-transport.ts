@@ -1,11 +1,11 @@
 import type { McpServerConfig, McpTransportFactory } from "@earendil-works/pi-coding-agent";
 import type { McpConfigFieldRef } from "./api-types";
-import { findWebPasswordField, resolvedConfigValues, WEB_PASSWORD_VARIABLE, type McpResolvedConfigValue } from "./mcp-config-values";
+import { findDeniedHostVariableField, resolvedConfigValues, type DeniedHostVariableFieldRef, type McpResolvedConfigValue } from "./mcp-config-values";
 import type { PiSdkInternals } from "./pi-sdk-internals";
 import { sanitizeProjectCommandEnvironment } from "./project-command-env";
 
-// The resolved-value walk and the PI_WEB_PASSWORD rule are client-safe (`lib/mcp-config-values.ts`).
-export { findWebPasswordField, resolvedConfigValues, WEB_PASSWORD_VARIABLE, type McpResolvedConfigValue };
+// The resolved-value walk and the denied-host-credential rule are client-safe (`lib/mcp-config-values.ts`).
+export { findDeniedHostVariableField, resolvedConfigValues, type DeniedHostVariableFieldRef, type McpResolvedConfigValue };
 
 // MCP servers are started on behalf of a project like its bash commands, so
 // they get the same environment: the server's own, without the variables that
@@ -31,13 +31,13 @@ export function describeConfigField(field: McpConfigFieldRef): string {
   return `${field.kind} "${field.name}"`;
 }
 
-/** `findWebPasswordField()` as the field's description, for messages. */
-export function findWebPasswordReference(
+/** `findDeniedHostVariableField()` as the field's description, for messages. */
+export function findDeniedHostVariableReference(
   config: McpServerConfig,
   internals: ConfigValueInternals,
-): string | undefined {
-  const field = findWebPasswordField(config, internals);
-  return field && describeConfigField(field);
+): { field: string; variable: string } | undefined {
+  const found = findDeniedHostVariableField(config, internals);
+  return found && { field: describeConfigField(found), variable: found.variable };
 }
 
 /** The sanitized environment with the server's own `env` on top; a Windows name replaces any casing of itself. */
@@ -75,9 +75,9 @@ export function createPiWebMcpTransportFactory(
 ): McpTransportFactory {
   const platform = options.platform ?? process.platform;
   return (entry, cwd, authProvider) => {
-    const field = findWebPasswordReference(entry.config, internals);
-    if (field) {
-      throw new Error(`MCP server "${entry.name}" ${field} references ${WEB_PASSWORD_VARIABLE}, which Pi Web does not pass to MCP servers`);
+    const denied = findDeniedHostVariableReference(entry.config, internals);
+    if (denied) {
+      throw new Error(`MCP server "${entry.name}" ${denied.field} references ${denied.variable}, which Pi Web does not pass to MCP servers`);
     }
     const transport = internals.createDefaultTransport(entry, cwd, authProvider);
     if ("url" in entry.config) return transport;

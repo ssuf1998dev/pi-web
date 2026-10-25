@@ -28,7 +28,7 @@ import {
   type McpImportResult,
   type McpImportServer,
 } from "@/lib/mcp-import";
-import { findWebPasswordField, resolvedConfigValues, WEB_PASSWORD_VARIABLE, type McpResolvedConfigValue } from "@/lib/mcp-config-values";
+import { findDeniedHostVariableField, isDeniedHostVariableName, resolvedConfigValues, type McpResolvedConfigValue } from "@/lib/mcp-config-values";
 import { SECRET_MASK } from "@/lib/mcp-secrets";
 import { formatMcpCommandLine, revealHiddenCharacters } from "@/lib/mcp-server-display";
 import { isBlockingFileProblem, mcpProjectTrustable, mcpWritesOff } from "./mcp-config-helpers";
@@ -336,12 +336,12 @@ const AUTHORIZATION_HEADER = /^(?:proxy-)?authorization$/i;
  * as pi passes `GITHUB_TOKEN` on; a header or the OAuth client secret a name
  * made from the server's (`docs` with `Authorization` → `DOCS_TOKEN`,
  * `X-Api-Key` → `DOCS_API_KEY`, `DOCS_CLIENT_SECRET`). Only a valid variable
- * name, or undefined, so the box it fills never opens on a refusal; never
- * PI_WEB_PASSWORD, which Add refuses.
+ * name, or undefined, so the box it fills never opens on a refusal; never one
+ * of the host's own login credentials, which Add refuses.
  */
 export function mcpSuggestedVariableName(label: string, serverName: string): string | undefined {
   const name = suggestedVariableName(label, serverName);
-  return name === WEB_PASSWORD_VARIABLE ? undefined : name;
+  return name === undefined || isDeniedHostVariableName(name) ? undefined : name;
 }
 
 function suggestedVariableName(label: string, serverName: string): string | undefined {
@@ -565,7 +565,8 @@ export type McpAddSubmitBlock =
    * the URL with a space): an `invalid-config` note, worded as the importer's.
    */
   | { kind: "config-invalid"; note: McpImportNote }
-  | { kind: "web-password" }
+  /** The entry reads one of the host's own login credentials, which Add refuses; named, never its value. */
+  | { kind: "denied-host-variable"; variable: string }
   | { kind: "scope"; block: McpAddProjectBlock };
 
 export interface McpAddAnalysis {
@@ -596,9 +597,9 @@ function namesIn(data: Pick<McpResponse, "servers">, scope: McpScope): string[] 
   return data.servers.filter((server) => server.scope === scope).map((server) => server.name);
 }
 
-/** Whether a value references PI_WEB_PASSWORD, which the route refuses as the transport would: the transport's own rule. */
-function referencesWebPassword(config: McpServerConfig): boolean {
-  return findWebPasswordField(config, { isCommandConfigValue, getConfigValueEnvVarNames: configValueEnvVarNames }) !== undefined;
+/** The host login credential a value reads, which the route refuses as the transport would: the transport's own rule. */
+function deniedHostVariableOf(config: McpServerConfig): string | undefined {
+  return findDeniedHostVariableField(config, { isCommandConfigValue, getConfigValueEnvVarNames: configValueEnvVarNames })?.variable;
 }
 
 /**
@@ -684,7 +685,7 @@ export function mcpAddAnalysis(draft: McpAddDraft, data: McpResponse, cwd: strin
     // A URL is shown as the preview shows it, so a password typed into it stays hidden.
     const params = filledProblem.problem === "url" ? { ...filledProblem, url: preview.target } : filledProblem;
     submitBlock = { kind: "config-invalid", note: { code: "invalid-config", params } };
-  } else if (referencesWebPassword(fill.config)) submitBlock = { kind: "web-password" };
+  } else if (deniedHostVariableOf(fill.config) !== undefined) submitBlock = { kind: "denied-host-variable", variable: deniedHostVariableOf(fill.config) ?? "" };
   else if (scope === "project" && projectBlock) submitBlock = { kind: "scope", block: projectBlock };
   else {
     const block = fileBlock(scope, data);

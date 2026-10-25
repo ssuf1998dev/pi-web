@@ -421,9 +421,9 @@ function McpServerItem({ server }: { server: McpServerInfo }) {
           {t("mcp.server.invalid")} <code className="project-trust-mcp-chip">{revealHiddenCharacters(server.invalidError)}</code>
         </p>
       )}
-      {server.webPasswordField && (
+      {server.deniedVariableField && (
         <p className="project-trust-mcp-line is-warning">
-          {t("mcp.server.webPassword")} <McpFieldChips fields={[server.webPasswordField]} />
+          {t("mcp.server.deniedVariable", { variable: server.deniedVariableField.variable })} <McpFieldChips fields={[server.deniedVariableField]} />
         </p>
       )}
       {!server.enabled && <p className="project-trust-mcp-line">{t("mcp.server.disabled")}</p>}

@@ -40,7 +40,7 @@ import {
 import { MCP_EXPOSURES, isMcpExposure, suggestFreeName } from "@/lib/mcp-import";
 import { mcpOAuthUrl, signOutMcpServer } from "@/lib/mcp-sign-in";
 import { forgetMcpEntryStatuses } from "@/lib/mcp-status";
-import { findWebPasswordField } from "@/lib/mcp-transport";
+import { findDeniedHostVariableField } from "@/lib/mcp-transport";
 import { holdRemovedEntry, returnRemovedEntry, takeRemovedEntry } from "@/lib/mcp-undo";
 import type { PiSdkInternals } from "@/lib/pi-sdk-internals";
 import { invalidateModelsCache } from "@/lib/models-cache";
@@ -192,13 +192,13 @@ async function overviewResponse(agentDir: string, project: Project | undefined, 
   }
 }
 
-/** Turning on an entry that references PI_WEB_PASSWORD is refused: Pi Web would not connect it, and the pi CLI would send the password. */
-function webPasswordRefusal(internals: PiSdkInternals) {
-  return (_name: string, entry: Record<string, unknown>) => (findWebPasswordField(entry, internals) ? "web-password" as const : undefined);
+/** Turning on an entry that reads one of the host's login credentials is refused: Pi Web would not connect it, and the pi CLI would send the credential. The reason carried is the variable's name, never its value. */
+function deniedHostVariableRefusal(internals: PiSdkInternals) {
+  return (_name: string, entry: Record<string, unknown>) => findDeniedHostVariableField(entry, internals)?.variable;
 }
 
 /** Why the writer left one server as it was, as a 409; undefined when it now says what was asked. */
-function outcomeRefusal(outcome: McpEnabledOutcome<"web-password">, path: string): Refusal | undefined {
+function outcomeRefusal(outcome: McpEnabledOutcome<string>, path: string): Refusal | undefined {
   const name = outcome.name;
   switch (outcome.outcome) {
     case "missing":
@@ -206,7 +206,7 @@ function outcomeRefusal(outcome: McpEnabledOutcome<"web-password">, path: string
     case "not-an-object":
       return new Refusal(409, "entry-not-object", `${path} defines MCP server "${name}" as something other than an object, so it has nothing to switch`, { path, name });
     case "refused":
-      return new Refusal(409, "web-password", `"${name}" references PI_WEB_PASSWORD, so Pi Web does not turn it on`, { name });
+      return new Refusal(409, "denied-host-variable", `"${name}" references ${outcome.reason}, so Pi Web does not turn it on`, { name, variable: outcome.reason });
     default:
       return undefined;
   }
@@ -226,7 +226,7 @@ async function switchServer(
       target,
       [server.name],
       enabled,
-      enabled ? webPasswordRefusal(internals) : undefined,
+      enabled ? deniedHostVariableRefusal(internals) : undefined,
     );
     const refused = outcomeRefusal(outcome, path);
     if (refused) return refused.response();
@@ -239,7 +239,7 @@ async function switchServer(
 /**
  * How one server's tools reach the model. Nothing connects because of it:
  * open sessions register the changed entry again at their next message, so
- * an entry that references PI_WEB_PASSWORD may change too, and stays off.
+ * an entry that reads a host login credential may change too, and stays off.
  */
 async function setServerExposure(
   agentDir: string,
@@ -264,8 +264,9 @@ async function setServerExposure(
  * "Enable / Disable in this project" does: an override entry in the project's
  * `.pi/mcp.json` (pi 1.0.1), written under any project write's checks. The
  * global entry must be one pi loads, since an override of anything else is
- * skipped; turning on one that references PI_WEB_PASSWORD is refused, as its
- * switch would be. Remove on the override's row goes back to the global value.
+ * skipped; turning on one that reads a host login credential is refused, as
+ * its switch would be. Remove on the override's row goes back to the global
+ * value.
  */
 async function switchServerInProject(
   agentDir: string,
@@ -285,8 +286,9 @@ async function switchServerInProject(
   }
   const global = readMcpServerConfig({ agentDir, internals, scope: "global", name });
   if (typeof global === "string") return refusal(409, "server-invalid", global, { name });
-  if (enabled && findWebPasswordField(global.config, internals)) {
-    return refusal(409, "web-password", `"${name}" references PI_WEB_PASSWORD, so Pi Web does not turn it on`, { name });
+  const denied = enabled ? findDeniedHostVariableField(global.config, internals) : undefined;
+  if (denied) {
+    return refusal(409, "denied-host-variable", `"${name}" references ${denied.variable}, so Pi Web does not turn it on`, { name, variable: denied.variable });
   }
   try {
     const { value: outcome, path } = await setMcpServerEnabledInProject(target, name, enabled);
@@ -301,7 +303,7 @@ async function switchServerInProject(
 /**
  * The group switch: every server asked for, one write per file, and a result
  * per server, so one the route refuses (removed meanwhile, not an object,
- * referencing PI_WEB_PASSWORD, in an untrusted project, in a file that no
+ * referencing a host login credential, in an untrusted project, in a file that no
  * longer parses) keeps the rest from failing.
  */
 async function switchServers(
@@ -326,7 +328,7 @@ async function switchServers(
         target,
         group.map((server) => server.name),
         enabled,
-        enabled ? webPasswordRefusal(internals) : undefined,
+        enabled ? deniedHostVariableRefusal(internals) : undefined,
       );
       for (const outcome of outcomes) {
         const server = { scope, name: outcome.name };

@@ -8,6 +8,7 @@ import { focusIfLost } from "@/lib/stacked-dialog";
 import { OAuthPastePanel } from "./OAuthPastePanel";
 import { ConfigButton, ConfigDetailGridRow } from "./SettingsUi";
 import type { McpActionFailure, McpTestBlock } from "./mcp-config-helpers";
+import { mcpDeniedVariableParams } from "./mcp-config-helpers";
 import {
   MCP_SIGN_IN_BLOCK_KEYS,
   MCP_SIGN_IN_PHASE_KEYS,
@@ -30,7 +31,7 @@ type Translate = ReturnType<typeof useI18n>["t"];
 function signInFailureText(failure: McpActionFailure, t: Translate, timedOutKey = "mcp.signIn.requestTimedOut"): string {
   if (failure.timedOut) return t(timedOutKey);
   const key = failure.reason ? MCP_SIGN_IN_REFUSAL_KEYS[failure.reason] : undefined;
-  if (key) return t(key);
+  if (key) return t(key, { variable: failure.variable ?? "" });
   return failure.reason && failure.reason !== "internal" ? t(`mcp.reason.${failure.reason}`) : failure.error;
 }
 
@@ -165,9 +166,9 @@ export function McpSignInRow({
             {t(run.signedOut.removed ? "mcp.signIn.signedOutDone" : "mcp.signIn.signedOutNothing")}
           </span>
         )}
-        {block && <span id={blockId} className="mcp-config-line is-dim">{t(MCP_SIGN_IN_BLOCK_KEYS[block])}</span>}
+        {block && <span id={blockId} className="mcp-config-line is-dim">{t(MCP_SIGN_IN_BLOCK_KEYS[block], mcpDeniedVariableParams(server))}</span>}
         {!block && signOutBlock && offersSignOut && !active && (
-          <span id={signOutBlockId} className="mcp-config-line is-dim">{t(MCP_SIGN_IN_BLOCK_KEYS[signOutBlock])}</span>
+          <span id={signOutBlockId} className="mcp-config-line is-dim">{t(MCP_SIGN_IN_BLOCK_KEYS[signOutBlock], mcpDeniedVariableParams(server))}</span>
         )}
         <div className="mcp-sign-in-actions">
           {active && flow ? (

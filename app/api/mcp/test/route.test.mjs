@@ -50,6 +50,7 @@ const globalServers = {
   lint: fixture({ PI_WEB_FIXTURE_ENV_FILE: envFile }),
   docs: { url: "http://127.0.0.1:9/mcp", headers: { Authorization: `Bearer ${SECRET}` } },
   pw: { url: "https://pw.example.com/mcp", headers: { Authorization: "Bearer ${PI_WEB_PASSWORD}" } },
+  sso: { url: "https://sso.example.com/mcp", oauth: { clientId: "pi-web", clientSecret: "${PI_WEB_OIDC_CLIENT_SECRET}" } },
   sse: { type: "sse", url: "https://old.example.com/sse" },
   junk: "not an object",
 };
@@ -169,7 +170,22 @@ test("MCP off on the server refuses every test", async () => {
 test("an entry Pi Web would not connect is refused before anything runs", async () => {
   assert.deepEqual(await post({ scope: "global", name: "pw" }), {
     status: 409,
-    body: { error: "\"pw\" references PI_WEB_PASSWORD, so Pi Web does not connect it", reason: "web-password", name: "pw" },
+    body: {
+      error: "\"pw\" references PI_WEB_PASSWORD, so Pi Web does not connect it",
+      reason: "denied-host-variable",
+      name: "pw",
+      variable: "PI_WEB_PASSWORD",
+    },
+  });
+  // The OIDC client secret is refused the same way, named as itself.
+  assert.deepEqual(await post({ scope: "global", name: "sso" }), {
+    status: 409,
+    body: {
+      error: "\"sso\" references PI_WEB_OIDC_CLIENT_SECRET, so Pi Web does not connect it",
+      reason: "denied-host-variable",
+      name: "sso",
+      variable: "PI_WEB_OIDC_CLIENT_SECRET",
+    },
   });
   const invalid = await post({ scope: "global", name: "sse" });
   assert.equal(invalid.status, 409);
@@ -238,7 +254,7 @@ test("a project override is tested as the global server it changes, and its stat
   assert.equal(servers.find((server) => server.scope === "global" && server.name === "lint").status, undefined);
 
   // What the global entry carries counts: an override is refused for it as the global entry would be.
-  assert.equal((await post({ scope: "project", name: "pw", cwd })).body.reason, "web-password");
+  assert.equal((await post({ scope: "project", name: "pw", cwd })).body.reason, "denied-host-variable");
   // And one with nothing to override is refused in the loader's words.
   const orphan = await post({ scope: "project", name: "nothing", cwd });
   assert.deepEqual([orphan.status, orphan.body.reason], [409, "server-invalid"]);

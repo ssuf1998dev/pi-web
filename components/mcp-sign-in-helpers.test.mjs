@@ -70,8 +70,8 @@ test("Sign in has the Test route's blocks; Sign out only the write blocks and a 
   const data = (overrides = {}) => ({ mcp: { available: true }, ...overrides });
   const server = (overrides = {}) => ({ scope: "global", validated: true, ...overrides });
   assert.equal(mcpSignInBlock(server(), data()), undefined);
-  assert.equal(mcpSignInBlock(server({ webPasswordField: { kind: "header", name: "X" } }), data()), "web-password");
-  assert.equal(mcpSignOutBlock(server({ webPasswordField: { kind: "header", name: "X" } }), data()), undefined, "its tokens can still go");
+  assert.equal(mcpSignInBlock(server({ deniedVariableField: { kind: "header", name: "X", variable: "PI_WEB_PASSWORD" } }), data()), "denied-host-variable");
+  assert.equal(mcpSignOutBlock(server({ deniedVariableField: { kind: "header", name: "X", variable: "PI_WEB_PASSWORD" } }), data()), undefined, "its tokens can still go");
   assert.equal(mcpSignInBlock(server({ invalidError: "bad" }), data()), "invalid");
   assert.equal(mcpSignOutBlock(server({ invalidError: "bad" }), data()), "invalid");
   const off = data({ mcp: { available: false, reason: "operator-disabled", error: "x" } });

@@ -604,7 +604,7 @@ class HostInstance {
     return true;
   }
 
-  /** The factory could not build a transport (a PI_WEB_PASSWORD reference, a failing `!command`). */
+  /** The factory could not build a transport (a host login credential reference, a failing `!command`). */
   transportFailed(attempt: ConnectAttempt, entry: McpServerEntry, error: unknown): void {
     attempt.current = undefined;
     const redact = createTestRedactor(entry.config, [], { isCommandConfigValue: this.isCommandValue });

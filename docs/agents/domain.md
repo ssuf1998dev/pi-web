@@ -22,7 +22,8 @@ Single-context repo:
 │   ├── 0003-built-in-subagent-toggle.md
 │   ├── 0004-enabled-models-toggles.md
 │   ├── 0005-built-in-subagent-disable.md
-│   └── 0006-mcp-and-code-mode.md
+│   ├── 0006-mcp-and-code-mode.md
+│   └── 0007-oidc-as-a-second-login-door.md
 ├── app/
 ├── components/
 ├── hooks/

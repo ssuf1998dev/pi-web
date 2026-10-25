@@ -117,7 +117,7 @@ test("a blocked sign-in is disabled and points at the visible reason", () => {
   }
   assert.doesNotMatch(text(html), /may replace|Sign out deletes/, "no explanation of what cannot be done");
   // A PI_WEB_PASSWORD entry cannot sign in, but its tokens can still go.
-  const password = buttons(row({ server: { ...oauth, signedIn: true }, block: "web-password" }));
+  const password = buttons(row({ server: { ...oauth, signedIn: true }, block: "denied-host-variable" }));
   assert.match(password[0].attributes, /disabled=""/);
   assert.doesNotMatch(password[1].attributes, /disabled/);
 });

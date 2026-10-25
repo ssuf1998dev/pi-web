@@ -39,7 +39,8 @@ import { isMcpOverrideEntry, MCP_OVERRIDE_KEYS, mcpOverrideRefusal } from "./mcp
 import { maskArgs, maskCommand, maskUrl } from "./mcp-secrets";
 import { mcpOAuthStoreKeys } from "./mcp-sign-out";
 import { readMcpHostInactive, withMcpStatuses } from "./mcp-status";
-import { findWebPasswordField, resolvedConfigValues, WEB_PASSWORD_VARIABLE } from "./mcp-transport";
+import { DENIED_HOST_VARIABLES } from "./host-credentials";
+import { findDeniedHostVariableField, resolvedConfigValues } from "./mcp-transport";
 import { samePath } from "./paths";
 import { hasParentDirectorySegment, isPathWithinRoots, resolveRealRoots } from "./path-security";
 import { loadPiSdkInternals, type PiSdkInternals } from "./pi-sdk-internals";
@@ -508,10 +509,14 @@ function describeServer(
     .filter((field) => !isCommand(field.value))
     .map((field): McpVariableReference => ({ ...fieldRef(field), variables: variableNames(field.value) }))
     .filter((reference) => reference.variables.length > 0);
-  const webPasswordField = internals
-    ? findWebPasswordField(config, internals)
-    : values.find((field) => field.value.toUpperCase().includes(WEB_PASSWORD_VARIABLE));
-  if (webPasswordField) info.webPasswordField = fieldRef(webPasswordField);
+  const deniedVariableField = internals
+    ? findDeniedHostVariableField(config, internals)
+    : values
+      .map((field) => ({ ...fieldRef(field), variable: DENIED_HOST_VARIABLES.find((name) => field.value.toUpperCase().includes(name)) }))
+      .find(({ variable }) => variable !== undefined);
+  if (deniedVariableField?.variable !== undefined) {
+    info.deniedVariableField = { ...fieldRef(deniedVariableField), variable: deniedVariableField.variable };
+  }
 
   const sendsProviderToken = "url" in config && Boolean(config.auth);
   const described = {

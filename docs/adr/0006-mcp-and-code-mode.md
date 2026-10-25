@@ -317,6 +317,11 @@ restores the branch's tool set from its transcript.
   entry that references `PI_WEB_PASSWORD` is refused. If the internals adapter
   cannot load, MCP is off: Pi Web never falls back to the SDK's default
   transport.
+
+  > **Updates (2026-10-25).** The refused set is a list now, not one name:
+  > `PI_WEB_PASSWORD` and `PI_WEB_OIDC_CLIENT_SECRET` (`lib/host-credentials.ts`, ADR 0007),
+  > and the refusal reason `web-password` became `denied-host-variable`, naming
+  > whichever credential the entry reads.
 - **Project entries follow project trust, as in the CLI.** A project
   `mcp.json` is read only once the project is trusted, inherited trust
   included, and every enabled entry then connects on the next prompt. An

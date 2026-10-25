@@ -8,7 +8,8 @@ import {
   parseMcpImport,
   suggestFreeName,
 } from "./mcp-import";
-import { findWebPasswordField, resolvedConfigValues } from "./mcp-transport";
+import { findDeniedHostVariableField, resolvedConfigValues } from "./mcp-transport";
+import { isDeniedHostVariableName } from "./host-credentials";
 import type { PiSdkInternals } from "./pi-sdk-internals";
 
 // What `POST /api/mcp { action: "add" }` checks before it writes anything
@@ -48,6 +49,8 @@ export interface McpAddRefusal {
   notes?: McpImportNote[];
   names?: string[];
   fields?: string[];
+  /** `denied-host-variable`: the host credential the entry reads, as Pi Web spells it. */
+  variable?: string;
 }
 
 export interface McpAddPrepared {
@@ -115,8 +118,8 @@ function chosenVariableNames(request: Pick<McpAddRequest, "values" | "secretRefe
  * `$NAME` references in an HTTP entry's header values and `oauth.clientSecret`,
  * which pi resolves from the whole `process.env` of the process connecting it,
  * for those names set there. A stdio entry's `env` stays on this computer, in
- * the process it starts, and is not counted. `PI_WEB_PASSWORD` is not counted
- * either: such an entry is refused outright.
+ * the process it starts, and is not counted. A denied host credential is not
+ * counted either: such an entry is refused outright.
  */
 export function mcpHostEnvNames(
   config: McpServerConfig,
@@ -127,7 +130,7 @@ export function mcpHostEnvNames(
   for (const { kind, value } of resolvedConfigValues(config)) {
     if (kind === "env" || internals.isCommandConfigValue(value)) continue;
     for (const name of internals.getConfigValueEnvVarNames(value)) {
-      if (name.toUpperCase() === "PI_WEB_PASSWORD") continue;
+      if (isDeniedHostVariableName(name)) continue;
       if (environment[name] !== undefined && !names.includes(name)) names.push(name);
     }
   }
@@ -146,7 +149,7 @@ export function mcpHostEnvNames(
  *   secrets the user chose to read from a variable stored as `${NAME}`
  *   (`fields-incomplete`, with the importer's notes);
  * - the SDK's validator must accept the result (`server-invalid`), and it may
- *   not reference `PI_WEB_PASSWORD` (`web-password`);
+ *   not reference a host login credential (`denied-host-variable`);
  * - a literal secret keeps it global (`secret-global-only`, with the fields):
  *   a project file is often committed;
  * - a non-pi paste whose headers or client secret read variables set on this
@@ -188,8 +191,16 @@ export function prepareMcpAdd(
   }
   const validated = internals.validateMcpServerConfig(name, filled.config);
   if (typeof validated === "string") return { ok: false, status: 409, reason: "server-invalid", error: validated, name };
-  if (findWebPasswordField(filled.config, internals)) {
-    return { ok: false, status: 409, reason: "web-password", error: `"${name}" references PI_WEB_PASSWORD, so Pi Web does not add it`, name };
+  const denied = findDeniedHostVariableField(filled.config, internals);
+  if (denied) {
+    return {
+      ok: false,
+      status: 409,
+      reason: "denied-host-variable",
+      error: `"${name}" references ${denied.variable}, so Pi Web does not add it`,
+      name,
+      variable: denied.variable,
+    };
   }
   if (request.scope === "project" && filled.secretPaths.length > 0) {
     return {

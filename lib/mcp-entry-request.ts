@@ -6,7 +6,7 @@ import type { McpErrorResponse, McpRefusalReason, McpScope } from "./api-types";
 import { isMcpDisabledByOperator, MCP_DISABLE_VARIABLE } from "./builtin-extensions";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "./file-access";
 import { readMcpServerDefinition, readMcpServerEntry } from "./mcp-config-read";
-import { findWebPasswordField } from "./mcp-transport";
+import { findDeniedHostVariableField } from "./mcp-transport";
 import { loadPiSdkInternals, type PiSdkInternals } from "./pi-sdk-internals";
 import { getProjectTrustStatus } from "./project-trust";
 import { hasJsonContentType, isApiRequestAllowed } from "./request-security";
@@ -17,7 +17,7 @@ import { hasJsonContentType, isApiRequestAllowed } from "./request-security";
 // run a `!command` value, so each re-checks everything a session's start
 // would: the request is Pi Web's own, MCP is not off, the entry is read from
 // its file (never a config from the browser) and valid, it does not reference
-// PI_WEB_PASSWORD, and a project entry's folder is allowed and trusted.
+// a host login credential is not referenced, and a project entry's folder is allowed and trusted.
 
 export interface McpEntryRefusal {
   status: number;
@@ -60,7 +60,7 @@ export function mcpEntryRefusal(
   status: number,
   reason: McpRefusalReason,
   error: string,
-  params: Pick<McpErrorResponse, "path" | "name"> = {},
+  params: Pick<McpErrorResponse, "path" | "name" | "variable"> = {},
 ): McpEntryRefusal {
   return { status, body: { error, reason, ...params } };
 }
@@ -167,7 +167,7 @@ export function mcpProjectTrustRefusal(
  * cannot load; `-builtin:mcp` does not count, an explicit action still
  * works), the project's trust, then the entry: its file's problems, missing
  * (`server-missing`), not an object, refused by the SDK's validator
- * (`server-invalid`), or referencing PI_WEB_PASSWORD (`web-password`).
+ * (`server-invalid`), or referencing a host login credential (`denied-host-variable`).
  */
 export async function readConnectableMcpEntry(req: Request): Promise<McpConnectableEntry | McpEntryRefusal> {
   if (!isApiRequestAllowed(req)) return mcpEntryRefusal(403, "request-denied", "Untrusted API request");
@@ -215,8 +215,9 @@ export async function readConnectableMcpEntry(req: Request): Promise<McpConnecta
     const resolved = readMcpServerConfig({ agentDir, project, internals, scope, name });
     if (typeof resolved === "string") return mcpEntryRefusal(409, "server-invalid", resolved, { name });
     const { config, configKey } = resolved;
-    if (findWebPasswordField(config, internals)) {
-      return mcpEntryRefusal(409, "web-password", `"${name}" references PI_WEB_PASSWORD, so Pi Web does not connect it`, { name });
+    const denied = findDeniedHostVariableField(config, internals);
+    if (denied) {
+      return mcpEntryRefusal(409, "denied-host-variable", `"${name}" references ${denied.variable}, so Pi Web does not connect it`, { name, variable: denied.variable });
     }
     return {
       scope,

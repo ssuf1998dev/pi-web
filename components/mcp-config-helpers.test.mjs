@@ -132,9 +132,9 @@ const on = { mcpAvailable: true, projectServersLoad: true };
 test("a row's state follows the file, the most important reason first", () => {
   assert.equal(mcpServerRowState(server(), on), "on");
   // pi refuses the entry: nothing else about it matters.
-  assert.equal(mcpServerRowState(server({ invalidError: "bad", enabled: false, webPasswordField: { kind: "header", name: "X" } }), on), "invalid");
+  assert.equal(mcpServerRowState(server({ invalidError: "bad", enabled: false, deniedVariableField: { kind: "header", name: "X", variable: "PI_WEB_PASSWORD" } }), on), "invalid");
   // Pi Web refuses it even while turned off, since turning it on would be refused too.
-  assert.equal(mcpServerRowState(server({ enabled: false, webPasswordField: { kind: "header", name: "X" } }), on), "web-password");
+  assert.equal(mcpServerRowState(server({ enabled: false, deniedVariableField: { kind: "header", name: "X", variable: "PI_WEB_PASSWORD" } }), on), "denied-host-variable");
   assert.equal(mcpServerRowState(server({ enabled: false }), { mcpAvailable: false, projectServersLoad: false }), "disabled");
   // A project entry connects only where the project's file is read.
   const project = server({ scope: "project", sourcePath: "/repo/.pi/mcp.json" });
@@ -201,7 +201,7 @@ test("project servers load only under a trust decision, as the MCP host reads it
 test("each state has a color, a full label and, when it is not plain on, visible short text", () => {
   assert.equal(mcpRowStateTone("on"), "on");
   assert.equal(mcpRowStateTone("invalid"), "error");
-  assert.equal(mcpRowStateTone("web-password"), "error");
+  assert.equal(mcpRowStateTone("denied-host-variable"), "error");
   assert.equal(mcpRowStateTone("not-trusted"), "warning");
   for (const state of ["disabled", "replaced", "mcp-off"]) assert.equal(mcpRowStateTone(state), "off", state);
   assert.deepEqual(mcpStatusDot("on"), { active: true });
@@ -934,8 +934,8 @@ test("a group switch sends only the servers it changes, and never turns on one t
   const servers = [
     server({ name: "on" }),
     server({ name: "off", enabled: false }),
-    server({ name: "pw-off", enabled: false, webPasswordField: { kind: "header", name: "Authorization" } }),
-    server({ name: "pw-on", webPasswordField: { kind: "header", name: "Authorization" } }),
+    server({ name: "pw-off", enabled: false, deniedVariableField: { kind: "header", name: "Authorization" } }),
+    server({ name: "pw-on", deniedVariableField: { kind: "header", name: "Authorization" } }),
   ];
   const names = ({ targets, keptOff }) => [targets.map((target) => target.name), keptOff];
   assert.deepEqual(names(mcpGroupSwitchTargets(servers, true)), [["off"], 1]);
@@ -958,7 +958,7 @@ test("a group switch reads on once every server it can turn on is, so a click ca
   };
   // A server on and one referencing PI_WEB_PASSWORD off: reading "every row on" kept this group
   // off for good, so each click asked to turn it on, sent nothing, and it never switched off.
-  let servers = [server({ name: "a" }), server({ name: "pw", enabled: false, webPasswordField: pwField })];
+  let servers = [server({ name: "a" }), server({ name: "pw", enabled: false, deniedVariableField: pwField })];
   assert.equal(mcpGroupSwitchChecked(servers), true);
   let step = click(servers);
   assert.deepEqual(step.sent, [false, ["a"], 0]);
@@ -973,9 +973,9 @@ test("a group switch reads on once every server it can turn on is, so a click ca
   assert.equal(mcpGroupSwitchChecked([server({ name: "a" }), server({ name: "b", enabled: false })]), false);
   assert.equal(mcpGroupSwitchChecked([]), false);
   // A PI_WEB_PASSWORD entry that is on counts as on, and switching off reaches it.
-  assert.equal(mcpGroupSwitchChecked([server({ name: "pw", webPasswordField: pwField })]), true);
+  assert.equal(mcpGroupSwitchChecked([server({ name: "pw", deniedVariableField: pwField })]), true);
   // Nothing it could turn on: off, and a click only says why the entries stay off.
-  servers = [server({ name: "pw", enabled: false, webPasswordField: pwField })];
+  servers = [server({ name: "pw", enabled: false, deniedVariableField: pwField })];
   assert.equal(mcpGroupSwitchChecked(servers), false);
   assert.deepEqual(click(servers).sent, [true, [], 1]);
 
@@ -1073,7 +1073,7 @@ test("Test is offered exactly where the route would test, with the reason as tex
   // The global servers beside an untrusted project can still be tested.
   assert.equal(mcpTestBlock(server(), { ...data, project: { cwd: "/repo", trustError: "locked" } }), undefined);
   assert.equal(mcpTestBlock(server({ invalidError: "legacy SSE" }), data), "invalid");
-  assert.equal(mcpTestBlock(server({ webPasswordField: { kind: "header", name: "Authorization" } }), data), "web-password");
+  assert.equal(mcpTestBlock(server({ deniedVariableField: { kind: "header", name: "Authorization" } }), data), "denied-host-variable");
   for (const key of [...Object.values(MCP_TEST_BLOCK_KEYS), ...Object.values(MCP_TEST_REFUSAL_KEYS)]) {
     assert.equal(typeof messages[key], "string", key);
   }
@@ -1293,9 +1293,9 @@ test("a test is posted to its own route with the project only when given, and en
   const refused = await postMcpTest({ scope: "global", name: "pw" }, null, async () => ({
     ok: false,
     status: 409,
-    json: async () => ({ error: "references PI_WEB_PASSWORD", reason: "web-password", name: "pw" }),
+    json: async () => ({ error: "references PI_WEB_PASSWORD", reason: "denied-host-variable", name: "pw" }),
   }));
-  assert.deepEqual(refused, { ok: false, error: { error: "references PI_WEB_PASSWORD", reason: "web-password", name: "pw" } });
+  assert.deepEqual(refused, { ok: false, error: { error: "references PI_WEB_PASSWORD", reason: "denied-host-variable", name: "pw" } });
   // An answer that is not a test result is a failure, not a result.
   assert.deepEqual(await postMcpTest({ scope: "global", name: "x" }, null, async () => ({ ok: true, status: 200, json: async () => ({ servers: [] }) })), {
     ok: false,

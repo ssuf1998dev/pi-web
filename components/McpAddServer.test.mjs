@@ -307,8 +307,8 @@ test("a refused Add says why; host variables are added only through an explicit 
   html = pane({ draft: { text: "https://api.example.com/mcp" }, failure: { error: 'server "server": url must be an http or https URL', reason: "server-invalid", name: "server" } });
   assert.match(text(html), /Not added: pi refuses it as filled in: server "server": url must be an http or https URL/);
   assert.doesNotMatch(text(html), /does not connect it/);
-  html = pane({ draft: { text: "https://api.example.com/mcp" }, failure: { error: "x", reason: "web-password", name: "server" } });
-  assert.match(text(html), /Not added: It references PI_WEB_PASSWORD, so Pi Web does not add it\./);
+  html = pane({ draft: { text: "https://api.example.com/mcp" }, failure: { error: "x", reason: "denied-host-variable", name: "server", variable: "PI_WEB_OIDC_CLIENT_SECRET" } });
+  assert.match(text(html), /Not added: It references PI_WEB_OIDC_CLIENT_SECRET, one of Pi Web's own login credentials, so Pi Web does not add it\./);
 });
 
 test("Settings › MCP opens the add pane from the sidebar, keeps the draft, and says what Add wrote", () => {

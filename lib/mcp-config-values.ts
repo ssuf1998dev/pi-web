@@ -1,19 +1,20 @@
-import type { McpConfigFieldRef } from "./api-types";
+import { DENIED_HOST_VARIABLES, isDeniedHostVariableName } from "./host-credentials";
+import type { McpConfigFieldRef, McpDeniedVariableFieldRef } from "./api-types";
 
 // Which values of an `mcp.json` entry pi resolves before it connects, and the
-// PI_WEB_PASSWORD rule over them. Client-safe, with no runtime imports: the
-// add pane (`components/mcp-add-helpers.ts`) previews and pre-blocks with the
-// same walk the server-side reader, the transport and the routes use
-// (re-exported by `lib/mcp-transport.ts`), so a change to which fields pi
-// resolves is made once.
+// denied-host-credential rule over them. Client-safe, with no runtime imports
+// but the pure credential list: the add pane (`components/mcp-add-helpers.ts`)
+// previews and pre-blocks with the same walk the server-side reader, the
+// transport and the routes use (re-exported by `lib/mcp-transport.ts`), so a
+// change to which fields pi resolves is made once.
 
-export const WEB_PASSWORD_VARIABLE = "PI_WEB_PASSWORD";
+export { DENIED_HOST_VARIABLES, isDeniedHostVariableName };
 
 export interface McpResolvedConfigValue extends McpConfigFieldRef {
   value: string;
 }
 
-/** The SDK's value parsers `findWebPasswordField()` needs; the browser passes its port of them. */
+/** The SDK's value parsers `findDeniedHostVariableField()` needs; the browser passes its port of them. */
 export interface McpConfigValueParsers {
   isCommandConfigValue(value: string): boolean;
   getConfigValueEnvVarNames(value: string): string[];
@@ -51,20 +52,29 @@ export function resolvedConfigValues(config: unknown): McpResolvedConfigValue[] 
   return values;
 }
 
+/** A value of `config` that reads a denied host credential, and which one. */
+export type DeniedHostVariableFieldRef = McpDeniedVariableFieldRef;
+
 /**
- * The value of `config` that references `PI_WEB_PASSWORD`, or undefined.
- * Values resolve against this process's environment, which still holds the
- * password, so removing it from the server's environment is not enough. Names
- * compare case-insensitively, as Windows resolves them. A `!command` can read
- * the variable without a `$` reference, so any mention counts; the SDK still
- * runs it with this process's whole environment.
+ * The value of `config` that references one of `DENIED_HOST_VARIABLES`, with
+ * that variable's name, or undefined. Values resolve against this process's
+ * environment, which still holds the credential, so removing it from the
+ * server's environment is not enough. Names compare case-insensitively, as
+ * Windows resolves them. A `!command` can read the variable without a `$`
+ * reference, so any mention counts; the SDK still runs it with this process's
+ * whole environment.
  */
-export function findWebPasswordField(config: unknown, parsers: McpConfigValueParsers): McpConfigFieldRef | undefined {
+export function findDeniedHostVariableField(
+  config: unknown,
+  parsers: McpConfigValueParsers,
+): DeniedHostVariableFieldRef | undefined {
   for (const { value, ...field } of resolvedConfigValues(config)) {
-    const references = parsers.isCommandConfigValue(value)
-      ? value.toUpperCase().includes(WEB_PASSWORD_VARIABLE)
-      : parsers.getConfigValueEnvVarNames(value).some((name) => name.toUpperCase() === WEB_PASSWORD_VARIABLE);
-    if (references) return field;
+    const upper = value.toUpperCase();
+    const names = parsers.isCommandConfigValue(value) ? null : parsers.getConfigValueEnvVarNames(value);
+    const variable = DENIED_HOST_VARIABLES.find((name) => (
+      names === null ? upper.includes(name) : names.some((ref) => ref.toUpperCase() === name)
+    ));
+    if (variable !== undefined) return { ...field, variable };
   }
   return undefined;
 }

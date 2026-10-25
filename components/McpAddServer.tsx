@@ -98,8 +98,8 @@ function submitBlockText(block: McpAddSubmitBlock, t: Translate, fields: readonl
       return t("mcp.add.blocked.fieldsInvalid", { fields: block.fields.map(revealHiddenCharacters).join(", ") });
     case "config-invalid":
       return mcpImportNoteText(block.note, t, fields);
-    case "web-password":
-      return t("mcp.add.blocked.web-password");
+    case "denied-host-variable":
+      return t("mcp.add.blocked.denied-host-variable", { variable: block.variable });
     case "scope":
       return mcpAddProjectBlockText(block.block, t, displayPath);
   }
@@ -111,7 +111,7 @@ function submitBlockText(block: McpAddSubmitBlock, t: Translate, fields: readonl
  */
 export const MCP_ADD_REFUSAL_KEYS: Partial<Record<NonNullable<McpActionFailure["reason"]>, string>> = {
   "server-invalid": "mcp.add.refused.server-invalid",
-  "web-password": "mcp.add.blocked.web-password",
+  "denied-host-variable": "mcp.add.blocked.denied-host-variable",
 };
 
 /** Why the route refused the last Add, in the add pane's words where the reason has them. */
@@ -129,7 +129,7 @@ function failureText(failure: McpActionFailure, t: Translate): string {
   }
   const addKey = failure.reason ? MCP_ADD_REFUSAL_KEYS[failure.reason] : undefined;
   // The SDK validator's words name the field, never a value.
-  if (addKey) return t(addKey, { error: revealHiddenCharacters(failure.error) });
+  if (addKey) return t(addKey, { error: revealHiddenCharacters(failure.error), variable: failure.variable ?? "" });
   if (failure.reason && failure.reason !== "internal") return t(`mcp.reason.${failure.reason}`);
   return revealHiddenCharacters(failure.error);
 }

@@ -114,7 +114,8 @@ test("each server shows its transport, what it would run or reach, and why it is
           commandFields: [{ kind: "header", name: "X" }],
           variableReferences: [{ kind: "header", name: "Y", variables: ["NEVER_SENT"] }],
         }),
-        server({ name: "leaky", transport: "stdio", command: "node", webPasswordField: { kind: "env", name: "PASS" } }),
+        server({ name: "leaky", transport: "stdio", command: "node", deniedVariableField: { kind: "env", name: "PASS", variable: "PI_WEB_PASSWORD" } }),
+        server({ name: "leaky-oidc", transport: "http", url: "https://sso.example/mcp", deniedVariableField: { kind: "header", name: "X-Sso", variable: "PI_WEB_OIDC_CLIENT_SECRET" } }),
         server({ name: "off", transport: "stdio", command: "node", args: ["off.js"], enabled: false }),
       ],
     }),
@@ -124,8 +125,8 @@ test("each server shows its transport, what it would run or reach, and why it is
   assert.match(shown, /^MCP servers in \.pi\/mcp\.json Trusting this project lets these servers connect/);
 
   const items = html.split('<li class="project-trust-mcp-server">').slice(1).map(text);
-  assert.equal(items.length, 5);
-  const [repo, github, legacy, leaky, off] = items;
+  assert.equal(items.length, 6);
+  const [repo, github, legacy, leaky, leakyOidc, off] = items;
   assert.equal(
     repo,
     'repo stdio node server.js "a b" --token ••• Working directory: ./tools Runs a shell command on every connection: env TOKEN'
@@ -147,10 +148,17 @@ test("each server shows its transport, what it would run or reach, and why it is
   // The pi CLI shares the trust decision and does not refuse the password, so this is a warning, not a reassurance.
   assert.equal(
     leaky,
-    "leaky stdio node References PI_WEB_PASSWORD. Pi Web refuses to connect it, but the pi CLI reads this file too"
-      + " and would send the password on if that variable is set where the CLI runs: env PASS",
+    "leaky stdio node References PI_WEB_PASSWORD, one of Pi Web's own login credentials. Pi Web refuses to connect it, but the pi CLI reads this file too"
+      + " and would send the credential on if that variable is set where the CLI runs: env PASS",
   );
-  assert.match(html, /<p class="project-trust-mcp-line is-warning">References PI_WEB_PASSWORD\./);
+  assert.match(html, /<p class="project-trust-mcp-line is-warning">References PI_WEB_PASSWORD, one of Pi Web&#x27;s own login credentials\./);
+  // The OIDC client secret is named as itself, and reaches the URL it is sent to.
+  assert.equal(
+    leakyOidc,
+    "leaky-oidc HTTP https://sso.example/mcp References PI_WEB_OIDC_CLIENT_SECRET, one of Pi Web's own login credentials."
+      + " Pi Web refuses to connect it, but the pi CLI reads this file too"
+      + " and would send the credential on if that variable is set where the CLI runs: header X-Sso",
+  );
   assert.equal(off, "off stdio node off.js Turned off in the file, so it does not connect.");
   assert.doesNotMatch(shown, /listed unchecked|declares no servers/);
 });

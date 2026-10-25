@@ -86,6 +86,7 @@ import {
   mcpCodemodeModeChanges,
   mcpCodemodeModeNotices,
   mcpCodemodeProjectOverrideNotice,
+  mcpDeniedVariableParams,
   mcpExposureReachNotice,
   mcpCodemodeRowState,
   mcpCodemodeTone,
@@ -217,7 +218,7 @@ export interface McpCodemodeSaveState {
 /** What the last group switch left undone, under that group's heading. */
 export interface McpGroupStatus {
   scope: McpScope;
-  /** Servers that reference PI_WEB_PASSWORD, which the switch left off. */
+  /** Servers that read one of the host's own login credentials, which the switch left off. */
   keptOff: number;
   /** The servers the route refused, of `total` asked for. */
   failures: { name: string; failure: McpActionFailure }[];
@@ -736,7 +737,7 @@ export function McpConfig({
 
   // One request for the whole group, answered per server: the ones the route
   // refuses keep their state and are named under the heading, and so are the
-  // ones referencing PI_WEB_PASSWORD, which switching on leaves off.
+  // ones reading a host login credential, which switching on leaves off.
   const switchGroup = useCallback(async (scope: McpScope, servers: McpServerInfo[], enabled: boolean) => {
     const { targets, keptOff } = mcpGroupSwitchTargets(servers, enabled);
     const pressed = pressedButton();
@@ -1334,7 +1335,7 @@ function McpServerGroupList({
   const { t } = useI18n();
   const { enabled, total } = mcpGroupCounts(group.servers);
   // On only while every server it can turn on is: a partial group reads as off beside its count, and one
-  // click completes it; an entry it never turns on (PI_WEB_PASSWORD, not an object) cannot hold it off.
+  // click completes it; an entry it never turns on (a host login credential, not an object) cannot hold it off.
   const checked = mcpGroupSwitchChecked(group.servers);
   const emptyKey = mcpGroupEmptyKey(group);
   const statusText = status ? groupStatusText(status, t) : undefined;
@@ -1491,8 +1492,8 @@ function McpServerDetail({
   const inProjectNoteId = useId();
   const key = mcpServerKey(server);
   const name = revealHiddenCharacters(server.name);
-  // The route never turns on an entry that references PI_WEB_PASSWORD; turning one off still works.
-  const passwordKeepsOff = !server.enabled && server.webPasswordField !== undefined;
+  // The route never turns on an entry that reads a host login credential; turning one off still works.
+  const credentialKeepsOff = !server.enabled && server.deniedVariableField !== undefined;
   // An entry that is not an object has no `enabled` to write; Remove still works.
   const switchless = server.notAnObject === true;
   // The note under the controls: why they cannot be used, or, under -builtin:mcp, that a change is
@@ -1501,8 +1502,8 @@ function McpServerDetail({
     ? t(`mcp.reason.${block}`)
     : switchless
       ? t("mcp.reason.entry-not-object")
-      : passwordKeepsOff
-        ? t("mcp.reason.web-password")
+      : credentialKeepsOff
+        ? t("mcp.reason.denied-host-variable", mcpDeniedVariableParams(server))
         : savedWhileOff
           ? t("mcp.write.savedWhileOff")
           : undefined;
@@ -1528,7 +1529,7 @@ function McpServerDetail({
             </ConfigButton>
             <ConfigSwitch
               checked={server.enabled}
-              disabled={controlsBusy || block !== undefined || switchless || passwordKeepsOff}
+              disabled={controlsBusy || block !== undefined || switchless || credentialKeepsOff}
               loading={busy === `switch:${key}`}
               describedBy={note ? noteId : undefined}
               label={t(server.enabled ? "mcp.server.switchOff" : "mcp.server.switchOn", { name })}
@@ -1669,8 +1670,8 @@ function McpServerDetail({
                   <span>
                     <ConfigButton
                       size="small"
-                      disabled={controlsBusy || inProjectBlock !== undefined || passwordKeepsOff}
-                      aria-describedby={[inProjectNoteId, inProjectBlock || passwordKeepsOff ? noteId : null].filter(Boolean).join(" ")}
+                      disabled={controlsBusy || inProjectBlock !== undefined || credentialKeepsOff}
+                      aria-describedby={[inProjectNoteId, inProjectBlock || credentialKeepsOff ? noteId : null].filter(Boolean).join(" ")}
                       onClick={() => onSwitchInProject(server, !server.enabled)}
                     >
                       {busy === `in-project:${key}`
@@ -1717,7 +1718,7 @@ function revealLines(text: string): string {
 function testFailureText(failure: McpActionFailure, t: Translate): string {
   if (failure.timedOut) return t("mcp.test.requestTimedOut");
   const key = failure.reason ? MCP_TEST_REFUSAL_KEYS[failure.reason] : undefined;
-  return key ? t(key) : failureText(failure, t);
+  return key ? t(key, { variable: failure.variable ?? "" }) : failureText(failure, t);
 }
 
 /** A status's error and the stderr tail it kept, as the server's text with its hidden characters escaped. */
@@ -1903,7 +1904,7 @@ function McpTestButton({
  * the last test request did. The status's own state word is left out when
  * that status is what gave the entry its state, which the label has just
  * said. Test points at the line saying why it cannot be used: the refusal's
- * own line for a refused entry or one that references PI_WEB_PASSWORD, which
+ * own line for a refused entry or one that reads a host login credential, which
  * would otherwise be said twice.
  */
 function McpStatusRow({
@@ -1925,8 +1926,8 @@ function McpStatusRow({
   // The refusal's own line, when it already says why Test cannot be used.
   const blockSaidBy = testBlock === "invalid" && state === "invalid"
     ? "state"
-    : testBlock === "web-password" && server.webPasswordField !== undefined
-      ? "password"
+    : testBlock === "denied-host-variable" && server.deniedVariableField !== undefined
+      ? "credential"
       : undefined;
   return (
     <ConfigDetailGridRow label={t("i18n.status")} tone="plain">
@@ -1937,10 +1938,10 @@ function McpStatusRow({
             {t("mcp.server.invalid")} <code className="mcp-config-chip">{revealHiddenCharacters(server.invalidError ?? "")}</code>
           </span>
         )}
-        {/* Whatever the state: it is also why a web-password entry's state has no sentence of its own. */}
-        {server.webPasswordField && (
-          <span id={blockSaidBy === "password" ? testBlockId : undefined} className="mcp-config-line is-warning">
-            {t("mcp.server.webPassword")} <McpFieldChips fields={[server.webPasswordField]} />
+        {/* Whatever the state: it is also why a denied-credential entry's state has no sentence of its own. */}
+        {server.deniedVariableField && (
+          <span id={blockSaidBy === "credential" ? testBlockId : undefined} className="mcp-config-line is-warning">
+            {t("mcp.server.deniedVariable", { variable: server.deniedVariableField.variable })} <McpFieldChips fields={[server.deniedVariableField]} />
           </span>
         )}
         {status
@@ -1955,7 +1956,7 @@ function McpStatusRow({
           </span>
         )}
         {testBlock && !blockSaidBy && (
-          <span id={testBlockId} className="mcp-config-line is-dim">{t(MCP_TEST_BLOCK_KEYS[testBlock])}</span>
+          <span id={testBlockId} className="mcp-config-line is-dim">{t(MCP_TEST_BLOCK_KEYS[testBlock], mcpDeniedVariableParams(server))}</span>
         )}
         {/* Its own line, so no locale has to join two sentences with a space. */}
         {!testBlock && server.commandFields.length > 0 && <span className="mcp-config-line is-dim">{t(MCP_TEST_SERIAL_KEY)}</span>}

@@ -121,7 +121,7 @@ test("a literal secret is saved globally only, and PI_WEB_PASSWORD never", async
   assert.ok(!JSON.stringify(global.body).includes("sk-live"), "nor in the overview");
 
   const password = await add({ text: JSON.stringify({ mcpServers: { pw: { url: "https://pw.example.com/mcp", headers: { A: "${PI_WEB_PASSWORD}" } } } }), rawPi: true });
-  assert.deepEqual([password.status, password.body.reason], [409, "web-password"]);
+  assert.deepEqual([password.status, password.body.reason], [409, "denied-host-variable"]);
 });
 
 test("a header that sends a variable set on the host is added only once that variable is confirmed", async (t) => {

@@ -7,6 +7,7 @@ import {
   type LoadExtensionsResult,
 } from "@earendil-works/pi-coding-agent";
 import { join } from "node:path";
+import { isDeniedHostVariableName } from "./host-credentials";
 
 const HOST_EXTENSION_NAME = "pi-web-project-command-environment";
 const HOST_EXTENSION_PATH = `<inline:${HOST_EXTENSION_NAME}>`;
@@ -35,9 +36,10 @@ function isHostRuntimeVariable(name: string, platform: NodeJS.Platform): boolean
   return comparableName === "PORT"
     || comparableName === "NODE_ENV"
     || comparableName.startsWith("NEXT_")
-    // The browser login password guards this server; commands run on behalf of
-    // a project (and the model reading their output) have no use for it.
-    || comparableName === "PI_WEB_PASSWORD";
+    // The browser login password and the OIDC client secret guard this server;
+    // commands run on behalf of a project (and the model reading their output)
+    // have no use for them.
+    || isDeniedHostVariableName(name);
 }
 
 export function sanitizeProjectCommandEnvironment(

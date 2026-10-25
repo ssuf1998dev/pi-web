@@ -159,11 +159,12 @@ lib/
   stacked-dialog.ts         Escape and focus handling for Settings and dialogs stacked above it
   project-trust.ts          project trust status and decisions; fresh-folder trust-and-write
   mcp-host.ts               per-session MCP host: registers mcp.json servers before prompts, reports status
-  mcp-transport.ts          MCP transport factory; stdio gets a sanitized env, never PI_WEB_PASSWORD
+  mcp-transport.ts          MCP transport factory; stdio gets a sanitized env, never a host login credential
   mcp-command.ts            client-safe: who owns /mcp (built-in or another extension)
   mcp-read-only-policy.ts   read-only sessions block MCP tools without readOnlyHint (nested calls too)
   mcp-config-key.ts         canonicalJson() and mcpConfigKey(), the per-process HMAC statuses are keyed by
-  mcp-config-values.ts      client-safe: the values pi resolves and the PI_WEB_PASSWORD rule
+  mcp-config-values.ts      client-safe: the values pi resolves and the host login credential rule
+  host-credentials.ts         the host's own login variables (PI_WEB_PASSWORD, PI_WEB_OIDC_CLIENT_SECRET): stripped from what Pi Web starts, refused in mcp.json
   mcp-config-read.ts        Settings › MCP reads of both mcp.json files; nothing resolved or run
   mcp-config-file.ts        the mcp.json writer: SDK editor's bytes, lock, atomic write, typed refusals
   mcp-override.ts           project overrides of global servers: the SDK's isOverride() and loader refusals
