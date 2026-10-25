@@ -6,6 +6,7 @@ import {
   retryAfterSeconds,
 } from "@/lib/auth-throttle";
 import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
+import { oidcConfigFromEnvironment } from "@/lib/oidc-config";
 import {
   createWebSessionToken,
   isValidBasicAuthorization,
@@ -58,8 +59,11 @@ export async function GET(request: NextRequest) {
   const authenticated = !enabled
     || isValidBasicAuthorization(request.headers.get("authorization"), password)
     || isValidWebSessionToken(request.cookies.get(PI_WEB_SESSION_COOKIE)?.value, password);
+  // Only the boolean crosses to the browser: the issuer, the client id and the
+  // allow-list say who may sign in, which is not the client's to learn.
+  const oidc = oidcConfigFromEnvironment() !== undefined;
   return NextResponse.json(
-    { enabled, authenticated },
+    { enabled, authenticated, oidc },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
